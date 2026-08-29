@@ -508,6 +508,23 @@ static float input_mouse_pixel_scale() {
 	return content_w > 0 ? (float)drawable_w / (float)content_w : 1.0f;
 }
 
+void input_mouse_accelerate(float aspect_ratio, int32_t in_vel_x, int32_t in_vel_y, int32_t* out_vel_x, int32_t* out_vel_y) {
+	float scaled_vel_y = in_vel_y * aspect_ratio;
+	float speed        = sqrtf((float)(in_vel_x * in_vel_x) + scaled_vel_y * scaled_vel_y);
+
+	float threshold = 4.0f;
+	float gain      = 0.1f;
+
+	if (speed > threshold) {
+		float multiplier = 1.0f + gain * (speed - threshold);
+		*out_vel_x = (int32_t)(in_vel_x * multiplier);
+		*out_vel_y = (int32_t)(scaled_vel_y * multiplier);
+	} else {
+		*out_vel_x = in_vel_x;
+		*out_vel_y = (int32_t)scaled_vel_y;
+	}
+}
+
 void input_mouse_update() {
 	// Get mouse position from sk_app
 	int32_t  mouse_x = 0, mouse_y = 0;
@@ -551,6 +568,13 @@ void input_mouse_update() {
 			// is the only source, and the app sees a stationary pos.
 			int32_t rel_x = 0, rel_y = 0;
 			ska_mouse_get_delta(&rel_x, &rel_y);
+
+			// adding our acceleration here
+			int32_t content_w = 0, content_h = 0;
+			ska_window_get_content_size(local.mouse_window, &content_w, &content_h);
+			float aspect_ratio = content_h > 0 ? (float)content_w / (float)content_h : 1.0f;
+			input_mouse_accelerate(aspect_ratio, rel_x, rel_y, &rel_x, &rel_y);
+
 			// Deltas are device units, not pixels, so they deliberately do not get
 			// the display scale: the same hand movement should turn the view the
 			// same amount on any monitor.
